@@ -12,26 +12,21 @@ int main(int argc, char *argv[]) {
     uint8_t V[16] = {0};
     uint16_t I = 0;
     uint8_t display[64 * 32] = {0};
-    //display[5] = 1;
 
     for (int cycle = 0; cycle < 200; cycle++) {
         /*fetch  命令を16ビットに結合*/
-        uint16_t opcode =
-            (memory[pc] << 8) | memory[pc + 1];    
-        //printf("opcode = 0x%04X\n", opcode);
+        uint16_t opcode = (memory[pc] << 8) | memory[pc + 1];
+        // printf("opcode = 0x%04X\n", opcode);
 
         pc += 2;
-        
+
         /*decode*/
         uint8_t type = (opcode & 0xF000) >> 12;
         // printf("type=%X\n", type);
-
         uint8_t x = (opcode & 0x0F00) >> 8;
         // printf("x=%X\n",x);
-
         uint8_t nn = (opcode & 0x00FF);
         // printf("nn=%02X\n",nn);
-
         uint16_t nnn = (opcode & 0x0FFF);
 
         uint8_t y = (opcode & 0x00F0) >> 4;
@@ -41,8 +36,8 @@ int main(int argc, char *argv[]) {
         /*execute 命令ごとに動かす*/
         switch (type) {
         case 0x0:
-            if(opcode == 0x00E0){
-                for(int i = 0; i < 64*32; i++){
+            if (opcode == 0x00E0) {
+                for (int i = 0; i < 64 * 32; i++) {
                     display[i] = 0;
                 }
             }
@@ -50,34 +45,45 @@ int main(int argc, char *argv[]) {
         case 0x1: // 1NNN pcをnnnに飛ばす
             pc = nnn;
             break;
-        case 0x6:  // 6XNN V[x]にnnを入れる
+        case 0x6: // 6XNN V[x]にnnを入れる
             V[x] = nn;
-            break;   
-        case 0x7:  // 7XNN Iにnnを足す
+            break;
+        case 0x7: // 7XNN V[x]にnnを足す
             V[x] += nn;
             break;
         case 0xA: // ANNN  Iにnnnを入れる
             I = nnn;
             break;
-        case 0xD:
+        case 0xD: {
+            int px = V[x] % 64; // 横の幅
+            int py = V[y] % 32; // 縦の高さ
+            V[0xF] = 0;
             for (int row = 0; row < n; row++) {
                 for (int col = 0; col < 8; col++) {
+                    if (px + col >= 64)
+                        continue;
+                    if (py + row >= 32)
+                        continue;
+
                     if ((memory[I + row] >> (7 - col)) & 1) {
-                        display[(V[y] + row) * 64 + (V[x] + col)] ^= 1;
+                        if (display[(py + row) * 64 + (px + col)]) {
+                            V[0xF] = 1;
+                        }
+                        display[(py + row) * 64 + (px + col)] ^= 1;
                     }
                 }
             }
             break;
         }
-       // printf("I=%X\n",I);
-       // printf("V[%X]=%d\n", x, V[x]);
+        }
     }
-    //printf("V[3]=%d\n", V[3]);   
-   // printf("%d\n",display[5]);
+
+    /*表示*/
     for (int row = 0; row < 32; row++) {
         for (int col = 0; col < 64; col++)
             printf("%c", display[row * 64 + col] ? '#' : ' ');
         printf("\n");
     }
+
     return 0;
 }
