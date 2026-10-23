@@ -1,31 +1,28 @@
 #include <stdint.h>
 #include <stdio.h>
 
-int main(void) {
+int main(int argc, char *argv[]) {
     uint8_t memory[4096] = {0};
     uint16_t pc = 0x200;
 
-    memory[0x200] = 0x63; 
-    memory[0x201] = 0x2A; 
-    memory[0x202] = 0x73;
-    memory[0x203] = 0x03;
-    memory[0x204] = 0xA2;
-    memory[0x205] = 0x2A;
+    FILE *fp = fopen(argv[1], "rb");
+    fread(&memory[0x200], 1, 4096 - 0x200, fp);
+    fclose(fp);
 
-    memory[0x206] = 0x12; memory[0x207] = 0x0A;  // 120A: 0x20A へジャンプ
-    memory[0x208] = 0x63; memory[0x209] = 0x63;  // 6363: 飛ばされる
-    memory[0x20A] = 0x73; memory[0x20B] = 0x01;        
-        
     uint8_t V[16] = {0};
     uint16_t I = 0;
+    uint8_t display[64 * 32] = {0};
+    //display[5] = 1;
 
-    while(pc < 0x20C) {
+    for (int cycle = 0; cycle < 200; cycle++) {
+        /*fetch  命令を16ビットに結合*/
         uint16_t opcode =
-            (memory[pc] << 8) | memory[pc + 1]; // 命令を16ビットに結合
-        printf("opcode = 0x%04X\n", opcode);
+            (memory[pc] << 8) | memory[pc + 1];    
+        //printf("opcode = 0x%04X\n", opcode);
 
         pc += 2;
-
+        
+        /*decode*/
         uint8_t type = (opcode & 0xF000) >> 12;
         // printf("type=%X\n", type);
 
@@ -37,23 +34,50 @@ int main(void) {
 
         uint16_t nnn = (opcode & 0x0FFF);
 
+        uint8_t y = (opcode & 0x00F0) >> 4;
+
+        uint8_t n = (opcode & 0x000F);
+
+        /*execute 命令ごとに動かす*/
         switch (type) {
-        case 0x1:
+        case 0x0:
+            if(opcode == 0x00E0){
+                for(int i = 0; i < 64*32; i++){
+                    display[i] = 0;
+                }
+            }
+            break;
+        case 0x1: // 1NNN pcをnnnに飛ばす
             pc = nnn;
             break;
-        case 0x6:  //入れる
+        case 0x6:  // 6XNN V[x]にnnを入れる
             V[x] = nn;
             break;   
-        case 0x7:  //足す
+        case 0x7:  // 7XNN Iにnnを足す
             V[x] += nn;
             break;
-        case 0xA:
+        case 0xA: // ANNN  Iにnnnを入れる
             I = nnn;
+            break;
+        case 0xD:
+            for (int row = 0; row < n; row++) {
+                for (int col = 0; col < 8; col++) {
+                    if ((memory[I + row] >> (7 - col)) & 1) {
+                        display[(V[y] + row) * 64 + (V[x] + col)] ^= 1;
+                    }
+                }
+            }
             break;
         }
        // printf("I=%X\n",I);
        // printf("V[%X]=%d\n", x, V[x]);
     }
-    printf("V[3]=%d\n", V[3]);   
+    //printf("V[3]=%d\n", V[3]);   
+   // printf("%d\n",display[5]);
+    for (int row = 0; row < 32; row++) {
+        for (int col = 0; col < 64; col++)
+            printf("%c", display[row * 64 + col] ? '#' : ' ');
+        printf("\n");
+    }
     return 0;
 }
