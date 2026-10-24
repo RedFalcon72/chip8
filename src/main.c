@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int main(int argc, char *argv[]) {
     uint8_t memory[4096] = {0};
@@ -10,6 +11,22 @@ int main(int argc, char *argv[]) {
     fclose(fp);
 
     uint8_t V[16] = {0};
+    uint8_t keys[16] = {0};
+    uint8_t delay_timer = 0, sound_timer = 0;
+
+    uint8_t font[80] = {
+        0xF0,0x90,0x90,0x90,0xF0, 0x20,0x60,0x20,0x20,0x70,
+        0xF0,0x10,0xF0,0x80,0xF0, 0xF0,0x10,0xF0,0x10,0xF0,
+        0x90,0x90,0xF0,0x10,0x10, 0xF0,0x80,0xF0,0x10,0xF0,
+        0xF0,0x80,0xF0,0x90,0xF0, 0xF0,0x10,0x20,0x40,0x40,
+        0xF0,0x90,0xF0,0x90,0xF0, 0xF0,0x90,0xF0,0x10,0xF0,
+        0xF0,0x90,0xF0,0x90,0x90, 0xE0,0x90,0xE0,0x90,0xE0,
+        0xF0,0x80,0x80,0x80,0xF0, 0xE0,0x90,0x90,0x90,0xE0,
+        0xF0,0x80,0xF0,0x80,0xF0, 0xF0,0x80,0xF0,0x80,0x80
+    };
+
+    for (int i = 0; i < 80; i++) memory[0x050 + i] = font[i];
+
     uint16_t stack[16];
     uint8_t sp = 0;
     uint16_t I = 0;
@@ -155,6 +172,60 @@ int main(int argc, char *argv[]) {
             }
             break;
         }
+        case 0xB: // BNNN  nnn + V[0] に飛ぶ
+            pc = nnn + V[0];
+            break;
+        case 0xC: // CXNN  ランダムな数と nn の AND
+            V[x] = (rand() % 256) & nn;
+            break;
+        case 0xE:
+            switch (nn) {
+                case 0x9E: // キーが押されていれば次を飛ばす
+                    if (keys[V[x] & 0xF]) pc += 2;
+                    break;
+                case 0xA1: // キーが押されていなければ次を飛ばす
+                    if (!keys[V[x] & 0xF]) pc += 2;
+                    break;
+                }
+            break;
+        case 0xF:
+            switch (nn) {
+                case 0x07: // V[x] に delay_timer を入れる
+                    V[x] = delay_timer;
+                    break;
+                case 0x0A: { // キーが押されるまで待つ
+                    int pressed = 0;
+                    for (int k = 0; k < 16; k++) {
+                    if (keys[k]) { V[x] = k; pressed = 1; break; }
+            }
+            if (!pressed) pc -= 2; // 同じ命令をもう一度読ませる
+            break;
+        }
+        case 0x15: // delay_timer に V[x] を入れる
+            delay_timer = V[x];
+            break;
+        case 0x18: // sound_timer に V[x] を入れる
+            sound_timer = V[x];
+            break;
+        case 0x1E: // I に V[x] を足す
+            I += V[x];
+            break;
+        case 0x29: // I を、文字 V[x] の絵の場所にする
+            I = 0x050 + (V[x] & 0xF) * 5;
+            break;
+        case 0x33: // V[x] を百・十・一の位に分けて memory[I] から書く
+            memory[I]     = V[x] / 100;
+            memory[I + 1] = (V[x] / 10) % 10;
+            memory[I + 2] = V[x] % 10;
+            break;
+        case 0x55: // V[0]〜V[x] を memory[I] から書く
+            for (int i = 0; i <= x; i++) memory[I + i] = V[i];
+            break;
+        case 0x65: // memory[I] から V[0]〜V[x] に読む
+            for (int i = 0; i <= x; i++) V[i] = memory[I + i];
+            break;
+        }
+    break;
         }
     }
 
