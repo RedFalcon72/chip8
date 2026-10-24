@@ -76,6 +76,56 @@ int main(int argc, char *argv[]) {
         case 0x7: // 7XNN V[x]にnnを足す
             V[x] += nn;
             break;
+        case 0x8:
+            switch (n) {
+                case 0x0:
+                    V[x] = V[y];
+                    break;
+                case 0x1:
+                    V[x] |= V[y];
+                    break;
+                case 0x2:
+                    V[x] &= V[y];
+                    break;
+                case 0x3:
+                    V[x] ^= V[y];
+                    break;
+                case 0x4:{
+                    int sum = V[x] + V[y];
+                    V[x] = sum & 0xFF;
+                    if(sum > 255) {
+                        V[0xF] = 1;
+                    }else{
+                        V[0xF] = 0;
+                    }
+                    break;
+                 }
+                case 0x5:{
+                    uint8_t flag = (V[x] >= V[y]) ? 1:0;
+                    V[x] = V[x] - V[y];
+                    V[0xF] = flag;
+                    break;
+                }
+                case 0x7: {
+                    uint8_t flag = (V[y] >= V[x]) ? 1 : 0;
+                    V[x] = V[y] - V[x];
+                    V[0xF] = flag;
+                    break;
+                }
+                case 0x6: {
+                    uint8_t flag = V[x] & 1;
+                    V[x] >>= 1;
+                    V[0xF] = flag;
+                    break;
+                }
+                case 0xE: {
+                    uint8_t flag = (V[x] >> 7) & 1;
+                    V[x] <<= 1;
+                    V[0xF] = flag;
+                    break;
+                }
+            }
+            break;
         case 0x9:
             if (V[x] != V[y]) {
                 pc += 2;
