@@ -10,6 +10,8 @@ int main(int argc, char *argv[]) {
     fclose(fp);
 
     uint8_t V[16] = {0};
+    uint16_t stack[16];
+    uint8_t sp = 0;
     uint16_t I = 0;
     uint8_t display[64 * 32] = {0};
 
@@ -40,10 +42,33 @@ int main(int argc, char *argv[]) {
                 for (int i = 0; i < 64 * 32; i++) {
                     display[i] = 0;
                 }
+            } else if (opcode == 0x00EE) {
+                sp--;
+                pc = stack[sp];
             }
             break;
         case 0x1: // 1NNN pcをnnnに飛ばす
             pc = nnn;
+            break;
+        case 0x2:
+            stack[sp] = pc;
+            sp++;
+            pc = nnn;
+            break;
+        case 0x3:
+            if(V[x] == nn){
+                pc += 2;
+            }
+            break;
+        case 0x4:
+            if(V[x] != nn) {
+                pc += 2;
+            }
+            break;
+        case 0x5:
+            if(V[x] == V[y]){
+                pc += 2;
+            }
             break;
         case 0x6: // 6XNN V[x]にnnを入れる
             V[x] = nn;
@@ -51,6 +76,11 @@ int main(int argc, char *argv[]) {
         case 0x7: // 7XNN V[x]にnnを足す
             V[x] += nn;
             break;
+        case 0x9:
+            if (V[x] != V[y]) {
+                pc += 2;
+             }
+             break;
         case 0xA: // ANNN  Iにnnnを入れる
             I = nnn;
             break;
