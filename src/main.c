@@ -1,6 +1,16 @@
 #include <stdint.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <termios.h>
+#include <unistd.h>
+
+static volatile int running = 1;
+
+static void on_sigint(int signal_number) {
+    (void)signal_number;
+    running = 0;
+}
 
 int main(int argc, char *argv[]) {
     uint8_t memory[4096] = {0};
@@ -9,6 +19,16 @@ int main(int argc, char *argv[]) {
     FILE *fp = fopen(argv[1], "rb");
     fread(&memory[0x200], 1, 4096 - 0x200, fp);
     fclose(fp);
+
+    struct termios old, raw;
+    tcgetattr(STDIN_FILENO, &old);
+    raw = old;
+    raw.c_lflag &= ~(ICANON | ECHO);
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    signal(SIGINT, on_sigint);
+    printf("\033[2J");
 
     uint8_t V[16] = {0};
     uint8_t keys[16] = {0};
@@ -32,7 +52,18 @@ int main(int argc, char *argv[]) {
     uint16_t I = 0;
     uint8_t display[64 * 32] = {0};
 
-    for (int cycle = 0; cycle < 200; cycle++) {
+    while (running) {
+        for (int k = 0; k < 16; k++) keys[k] = 0;
+        char c;
+        while (read(STDIN_FILENO, &c, 1) == 1) {
+            if (c == 27) running = 0;
+            const char *map = "x123qweasdzc4rfv";
+            for (int k = 0; k < 16; k++) {
+                if (c == map[k]) keys[k] = 1;
+            }
+        }
+
+        for (int cycle = 0; cycle < 10; cycle++) {
         /*fetch  命令を16ビットに結合*/
         uint16_t opcode = (memory[pc] << 8) | memory[pc + 1];
         // printf("opcode = 0x%04X\n", opcode);
@@ -229,12 +260,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /*表示*/
+        if (delay_timer > 0) delay_timer--;
+        if (sound_timer > 0) sound_timer--;
+
+        printf("\033[H");
     for (int row = 0; row < 32; row++) {
         for (int col = 0; col < 64; col++)
             printf("%c", display[row * 64 + col] ? '#' : ' ');
         printf("\n");
     }
+        fflush(stdout);
+        usleep(16667);
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &old);
 
     return 0;
 }
